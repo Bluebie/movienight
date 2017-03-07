@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html><head>
+  <title>MovieNight</title>
+  <link href="movienight-assets/video-js.min.css" rel="stylesheet">
+  <script src="movienight-assets/video.min.js"></script>
+  <script src="movienight-assets/hls.js/dist/hls.min.js"></script>
+  <script src="movienight-assets/videojs-hlsjs.js"></script>
+  <script src="movienight-assets/fetch.min.js"></script>
+  <style>
+    html, body { width: 100%; height: 100%; padding: 0; margin: 0; border: 0; }
+    #video { width: 100%; height: 100%; }
+    div.video-js .vjs-progress-control.vjs-control { pointer-events: none; }
+    div.video-js button.vjs-big-play-button,
+    div.video-js .vjs-captions-button { display: none }
+    div#curtains {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background-color: inherit;
+      color: white;
+      font-size: 200%;
+      display: flex;
+      justify-content: center; align-items: center;
+    }
+    div#curtains #start-time { font-weight: bold; padding-left: 0.5ex; }
+  </style>
+</head><body bgcolor="#070707">
+<video id="video" controls class="video-js vjs-default-skin"></video>
+<div id="curtains">
+  The film will begin at <span id="start-time"></span>
+</div>
+
+<script>
+var lang2table = {
+  "aar":"aa","abk":"ab","afr":"af","aka":"ak","alb":"sq","amh":"am","ara":"ar",
+  "arg":"an","arm":"hy","asm":"as","ava":"av","ave":"ae","aym":"ay","aze":"az",
+  "bak":"ba","bam":"bm","baq":"eu","bel":"be","ben":"bn","bih":"bh","bis":"bi",
+  "bos":"bs","bre":"br","bul":"bg","bur":"my","cat":"ca","cha":"ch","che":"ce",
+  "chi":"zh","chu":"cu","chv":"cv","cor":"kw","cos":"co","cre":"cr","cze":"cs",
+  "dan":"da","div":"dv","dut":"nl","dzo":"dz","eng":"en","epo":"eo","est":"et",
+  "ewe":"ee","fao":"fo","fij":"fj","fin":"fi","fre":"fr","fry":"fy","ful":"ff",
+  "geo":"ka","ger":"de","gla":"gd","gle":"ga","glg":"gl","glv":"gv","gre":"el",
+  "grn":"gn","guj":"gu","hat":"ht","hau":"ha","heb":"he","her":"hz","hin":"hi",
+  "hmo":"ho","hrv":"hr","hun":"hu","ibo":"ig","ice":"is","ido":"io","iii":"ii",
+  "iku":"iu","ile":"ie","ina":"ia","ind":"id","ipk":"ik","ita":"it","jav":"jv",
+  "jpn":"ja","kal":"kl","kan":"kn","kas":"ks","kau":"kr","kaz":"kk","khm":"km",
+  "kik":"ki","kin":"rw","kir":"ky","kom":"kv","kon":"kg","kor":"ko","kua":"kj",
+  "kur":"ku","lao":"lo","lat":"la","lav":"lv","lim":"li","lin":"ln","lit":"lt",
+  "ltz":"lb","lub":"lu","lug":"lg","mac":"mk","mah":"mh","mal":"ml","mao":"mi",
+  "mar":"mr","may":"ms","mlg":"mg","mlt":"mt","mon":"mn","nau":"na","nav":"nv",
+  "nbl":"nr","nde":"nd","ndo":"ng","nep":"ne","nno":"nn","nob":"nb","nor":"no",
+  "nya":"ny","oci":"oc","oji":"oj","ori":"or","orm":"om","oss":"os","pan":"pa",
+  "per":"fa","pli":"pi","pol":"pl","por":"pt","pus":"ps","que":"qu","roh":"rm",
+  "rum":"ro","run":"rn","rus":"ru","sag":"sg","san":"sa","sin":"si","slo":"sk",
+  "slv":"sl","sme":"se","smo":"sm","sna":"sn","snd":"sd","som":"so","sot":"st",
+  "spa":"es","srd":"sc","srp":"sr","ssw":"ss","sun":"su","swa":"sw","swe":"sv",
+  "tah":"ty","tam":"ta","tat":"tt","tel":"te","tgk":"tg","tgl":"tl","tha":"th",
+  "tib":"bo","tir":"ti","ton":"to","tsn":"tn","tso":"ts","tuk":"tk","tur":"tr",
+  "twi":"tw","uig":"ug","ukr":"uk","urd":"ur","uzb":"uz","ven":"ve","vie":"vi",
+  "vol":"vo","wel":"cy","wln":"wa","wol":"wo","xho":"xh","yid":"yi","yor":"yo",
+  "zha":"za","zul":"zu"};
+
+var title = location.hash.split('#')[1].split('/')[0].replace(/[^a-z0-9_-]/i, '');
+var player = videojs('video');
+player.ready(function() {
+  this.src({type: 'application/x-mpegURL', src: "presentation/"+title+"/stream.m3u8"});
+  // fetch subtitles info
+  fetch("presentation/"+title+"/subtitles.txt")
+  .then(function(response) { return response.text(); })
+  .then(function(response) {
+    response.split("\n").forEach(function(subtrack) {
+      if (subtrack.length == 0) return;
+      var lr = subtrack.split('=',3);
+      player.addRemoteTextTrack({
+        kind: "subtitles",
+        language: lang2table[lr[1]] || lr[1],
+        label: lr[2] || (lr[1] + " subtitles"),
+        src: "presentation/"+title+"/" + lr[0]
+      });
+    });
+  });
+});
+
+var syncThreshold = 20.0;
+var rateAdjustThreshold = 1.0;
+var rateAdjustAmount = 0.5;
+var maxJumpRate = 10; // 10 seconds is maximum frequencies of jumps
+var showingInterval = 60*60*1; // every hour, it resets
+var startTime = Date.now() / 1000;
+startTime -= startTime % showingInterval;
+
+// if start time is specified in url, parse it out
+if (location.hash.includes('/')) {
+  var match = /([0-9]{2}).([0-9]{2})Z/.exec(decodeURIComponent(location.hash.split('/',2)[1]));
+  if (!match) alert("Invalid Start Time. Format must be HH.MMZ");
+  else {
+    // calculate the today and tomorrow versions, then pick the closest one and use that
+    var dateobj = new Date();
+    var hh = parseInt(match[1]); var mm = parseInt(match[2]);
+    dateobj.setUTCHours(hh, mm, 0, 0);
+    var today = dateobj.getTime();
+    dateobj.setUTCDate(dateobj.getUTCDate() + 1);
+    var tomorrow = dateobj.getTime();
+    var now = Date.now();
+    startTime = (Math.abs(now - today) < Math.abs(now - tomorrow) ? today : tomorrow) / 1000;
+  }
+}
+
+// setup start time curtains
+var dateParsed = (new Date(startTime*1000));
+//document.getElementById('start-time').textContent = dateParsed.getHours() + ":" + dateParsed.getMinutes();
+document.getElementById('start-time').textContent = dateParsed.toLocaleTimeString();
+document.getElementById('start-time').title = dateParsed.toLocaleDateString();
+
+if (startTime == NaN) alert("Invalid Start Time!");
+
+function start() {
+  if (startTime < Date.now() / 1000) {
+    resync();
+    //document.getElementById('video').play();
+    player.play();
+    document.getElementById('curtains').style.display = "none";
+    setInterval(resync, 250);
+  } else {
+    setTimeout(start, 100);
+  }
+}
+
+var lastJump = 0;
+var adjustingViaRate = false;
+function resync() {
+  //var video = document.getElementById('video');
+  var now = Date.now() / 1000;
+  var targetTime = now - startTime;
+  var diff = targetTime - player.currentTime();
+
+  if (Math.abs(diff) > syncThreshold && lastJump < Date.now() - (maxJumpRate * 1000)) {
+    // resync!
+    //var paused = player.paused();
+    //player.pause();
+    player.currentTime(targetTime);
+    lastJump = Date.now();
+    //if (!paused) player.play()
+  } else if (adjustingViaRate === false && Math.abs(diff) > rateAdjustThreshold) {
+    doRateAdjust();
+  }
+  // auto play if that is the correct thing to be doing!
+  if (now >= startTime && now < startTime + player.duration() && player.paused()) player.play();
+}
+
+function doRateAdjust() {
+  var now = Date.now() / 1000;
+  var targetTime = now - startTime;
+  var diff = targetTime - player.currentTime();
+  var rate = 1.0;
+
+  if (diff > 0) {
+    rate += rateAdjustAmount;
+  } else {
+    rate -= rateAdjustAmount;
+  }
+
+  // if we need to start the adjustment, do that
+  if (player.playbackRate() == 1.0) {
+    console.log("starting adjustment via play rate", rate, "current diff", diff);
+    player.playbackRate(rate);
+  }
+  // if that's still the right adjustment, wait a little longer!
+  if (rate == player.playbackRate()) {
+    adjustingViaRate = setTimeout(doRateAdjust, 100);
+  // if we crossed the threshold and are going the wrong way now, we're done adjusting!
+  } else {
+    console.log("adjustment complete! diff is", diff);
+    player.playbackRate(1.0);
+    clearInterval(adjustingViaRate); adjustingViaRate = false;
+  }
+}
+
+player.on("loadedmetadata", start);
+
+</script>
+</body></html>
