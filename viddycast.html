@@ -42,7 +42,7 @@ var lookForPresentationInterval = 2500;
 function lookForPresentation() {
   // test if the live streams have started existing yet...
   var opts = { method: 'POST' };
-  fetch("presentation/"+title+"/stream.m3u8", opts).then(function(response) { // success handler
+  fetch("presentation/"+title+"/stream-A-.m3u8", opts).then(function(response) { // success handler
     if (response.status != 404) {
       // if they do exist, tell the player to change url to new video
       player.src({type: 'application/x-mpegURL', src: "presentation/"+title+"/stream.m3u8"});
