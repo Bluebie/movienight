@@ -16,24 +16,26 @@ echo "Generating manifest..."
 mkdir $pubdir
 manifest="$pubdir/stream.m3u8"
 echo "#EXTM3U" > $manifest
-echo "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=596000,RESOLUTION=432x243,CODECS=\"avc1.4D401f,mp4a.40.2\"" >> $manifest
+echo "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=628000,RESOLUTION=432x243,CODECS=\"avc1.4D401f,mp4a.40.2\"" >> $manifest
 echo "stream-A-.m3u8" >> $manifest
 echo "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1328000,RESOLUTION=720x405,CODECS=\"avc1.4D401f,mp4a.40.2\"" >> $manifest
 echo "stream-B-.m3u8" >> $manifest
-echo "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2128000,RESOLUTION=1024x576,CODECS=\"avc1.4D401f,mp4a.40.2\"" >> $manifest
-echo "stream-C-.m3u8" >> $manifest
-echo "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=3192000,RESOLUTION=1280x720,CODECS=\"avc1.4D401f,mp4a.40.2\"" >> $manifest
+# echo "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2128000,RESOLUTION=1024x576,CODECS=\"avc1.4D401f,mp4a.40.2\"" >> $manifest
+# echo "stream-C-.m3u8" >> $manifest
+echo "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=3128000,RESOLUTION=1280x720,CODECS=\"avc1.4D401f,mp4a.40.2\"" >> $manifest
 echo "stream-D-.m3u8" >> $manifest
 
 echo "Streaming..."
 ffmpeg -re -i "$1" \
-  $extra_args $video_settings -vf scale=432:-2  -b:v 500k  $audio_settings -ac 2 -b:a 96k  $hls_options "$pubdir/stream-A-.m3u8" \
+  $extra_args $video_settings -vf scale=432:-2  -b:v 500k  $audio_settings -ac 2 -b:a 128k $hls_options "$pubdir/stream-A-.m3u8" \
   $extra_args $video_settings -vf scale=720:-2  -b:v 1200k $audio_settings -ac 2 -b:a 128k $hls_options "$pubdir/stream-B-.m3u8" \
-  $extra_args $video_settings -vf scale=1024:-2 -b:v 2000k $audio_settings -ac 2 -b:a 128k $hls_options "$pubdir/stream-C-.m3u8" \
-  $extra_args $video_settings -vf scale=1280:-2 -b:v 3000k $audio_settings -ac 2 -b:a 192k $hls_options "$pubdir/stream-D-.m3u8"
+  $extra_args $video_settings -vf scale=1280:-2 -b:v 3000k $audio_settings -ac 2 -b:a 128k $hls_options "$pubdir/stream-D-.m3u8"
+
+#  $extra_args $video_settings -vf scale=1024:-2 -b:v 2000k $audio_settings -ac 2 -b:a 128k $hls_options "$pubdir/stream-C-.m3u8" \
 
 echo "Stream complete, waiting 60 seconds for everyone to finish stream..."
+rm "$pubdir/stream.m3u8"
 sleep 60
-echo "Erasing stream files..."
+echo "Erasing all stream files..."
 rm -r "$pubdir"
 echo "All done!"
